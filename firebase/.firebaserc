@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "default": "binance-assistent",
+    "binance-assistent": "binance-assistent"
+  },
+  "targets": {}
+}
