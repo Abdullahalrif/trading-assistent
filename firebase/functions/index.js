@@ -24,6 +24,10 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
     agent.add(`Welcome to my agent!!!`);
   }
 
+  function welcome2(agent) {
+    agent.add(`Welcome to my agent!!!`);
+  }
+
   function fallback(agent) {
     agent.add(`I didn't understand`);
     agent.add(`I'm sorry, can you try again?`);
@@ -65,6 +69,7 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
   // Run the proper function handler based on the matched Dialogflow intent name
   let intentMap = new Map();
   intentMap.set('Default Welcome Intent', welcome);
+  intentMap.set('TestTest', welcome2);
   intentMap.set('Default Fallback Intent', fallback);
   intentMap.set('music vote', voting);
   // intentMap.set('your intent name here', yourFunctionHandler);
