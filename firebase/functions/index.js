@@ -5,9 +5,13 @@
 const functions = require('firebase-functions');
 const {WebhookClient} = require('dialogflow-fulfillment');
 const {Card, Suggestion} = require('dialogflow-fulfillment');
-const Binance = require('node-binance-api');
 
 process.env.DEBUG = 'dialogflow:debug'; // enables lib debugging statements
+
+const axios = require('axios');
+
+const Binance = require('node-binance-api');
+const binance = new Binance();
 
 exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, response) => {
   const agent = new WebhookClient({ request, response });
@@ -16,6 +20,12 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
   console.log('Dialogflow Intent: ' + agent.intent);
   console.log('Dialogflow Parameters: ' + agent.parameters);
   console.log('Dialogflow Music: ' + agent.parameters['music-artist']);
+
+  let conv = agent.conv(); // Get Actions on Google library conv instance
+
+  if (conv !== null && conv.data.news === undefined ) {
+    conv.data.news = [];
+  }
 
   function welcome(agent) {
     agent.add(`Welcome to my agent!!!`);
@@ -27,10 +37,64 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
   }
 
   function voting(agent) {
-      agent.add(`Voting blabla test`);
+      agent.add(`Voting to`);
   }
 
-  // Abdullah
+  function coinPrice(agent){
+    agent.add(`BNB price is 640.66`);
+  }
+
+  async function showNews(agent) {
+    let response = await displayNews();
+    agent.add(response);
+  }
+
+  async function displayNews(){
+    if (conv === null || conv.data.news.length === 0){ // check if we have already fetched news
+      await getNews();
+      // display
+      return buildSingelNewsResponse();
+    } else {
+      // display
+      return buildSingelNewsResponse();
+    }
+  }
+
+  function buildSingelNewsResponse(){
+    let responseToUser;
+    if (conv.data.news.length === 0){
+      responseToUser = 'No news available now';
+    }else {
+      let newsItem = conv.data.news[0];
+      responseToUser = 'News number 1 ';
+      responseToUser += newsItem.title;
+
+      conv.ask(responseToUser);
+
+      // TODO display newsItem in a card
+    }
+
+    return conv;
+  }
+
+  function getNews(){
+    return axios.get('https://cryptopanic.com/api/v1/posts/?auth_token=f9ea6488d66276436a65695a038699d8ddea9ed0&filter=hot')
+        .then(function (response) {
+          let news = response.data;
+          saveNews(news.results);
+        })
+        .catch(function (error) {
+          console.log('no news were found')
+          console.log(error);
+        });
+  }
+
+  // we save the data to avoid call the api every time
+  function saveNews(news){
+    if (conv !== null){
+      conv.data.news = news;
+    }
+  }
 
   // // Uncomment and edit to make your own intent handler
   // // uncomment `intentMap.set('your intent name here', yourFunctionHandler);`
@@ -66,6 +130,8 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
   intentMap.set('Default Welcome Intent', welcome);
   intentMap.set('Default Fallback Intent', fallback);
   intentMap.set('music vote', voting);
+  intentMap.set('show news', showNews);
+  intentMap.set('coin price', coinPrice);
   // intentMap.set('your intent name here', yourFunctionHandler);
   // intentMap.set('your intent name here', googleAssistantHandler);
   agent.handleRequest(intentMap);
