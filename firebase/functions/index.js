@@ -27,6 +27,10 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
     conv.data.news = [];
   }
 
+  if ( conv !== null && conv.data.newsCounter === undefined ) {
+    conv.data.newsCounter = 0;
+  }
+
   function welcome(agent) {
     agent.add(`Welcome to my agent!!!`);
   }
@@ -49,6 +53,12 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
     agent.add(response);
   }
 
+  async function nextNews(agent){
+    conv.data.newsCounter++;
+    let response = await displayNews();
+    agent.add(response);
+  }
+
   async function displayNews(){
     if (conv === null || conv.data.news.length === 0){ // check if we have already fetched news
       await getNews();
@@ -64,9 +74,10 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
     let responseToUser;
     if (conv.data.news.length === 0){
       responseToUser = 'No news available now';
+      conv.ask(responseToUser);
     }else {
-      let newsItem = conv.data.news[0];
-      responseToUser = 'News number 1 ';
+      let newsItem = conv.data.news[conv.data.newsCounter];
+      responseToUser = 'News number ' + conv.data.newsCounter  + ' ';
       responseToUser += newsItem.title;
 
       conv.ask(responseToUser);
@@ -131,6 +142,7 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
   intentMap.set('Default Fallback Intent', fallback);
   intentMap.set('music vote', voting);
   intentMap.set('show news', showNews);
+    intentMap.set('show news - next', nextNews);
   intentMap.set('coin price', coinPrice);
   // intentMap.set('your intent name here', yourFunctionHandler);
   // intentMap.set('your intent name here', googleAssistantHandler);
