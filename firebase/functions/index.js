@@ -4,7 +4,8 @@
 
 const functions = require('firebase-functions');
 const {WebhookClient} = require('dialogflow-fulfillment');
-const {Card, Suggestion} = require('dialogflow-fulfillment');
+//const {Card, Suggestion} = require('dialogflow-fulfillment');
+const { BasicCard, Button, Image, List, Suggestions} = require('actions-on-google');
 
 process.env.DEBUG = 'dialogflow:debug'; // enables lib debugging statements
 
@@ -40,23 +41,79 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
     agent.add(`I'm sorry, can you try again?`);
   }
 
-  function voting(agent) {
-      agent.add(`Voting to`);
+  async function listNews(agent) {
+    let response = await getNewsList();
+    agent.add(response);
   }
 
-  function coinPrice(agent){
-    agent.add(`BNB price is 640.66`);
+  async function getNewsList(){
+    conv.data.newsCounter = 0;
+    if (conv.data.news.length === 0){ // check if we have data from the api service
+      await getNews();
+
+      return buildNewsListResponse();
+    } else {
+      return buildNewsListResponse();
+    }
+  }
+
+  function buildNewsListResponse(){
+    let responseToUser;
+    if (conv.data.news.length === 0){
+      responseToUser = 'no news available at this time! try again later';
+      conv.close(responseToUser); // close conversation later call another intent
+    } else {
+      let textList = 'This is a list of news. Please select one to proceed';
+      let items = {};
+
+      for (let i = 0; i < conv.data.news.length; i++){
+        let newsItem = conv.data.news[i];
+        items['news ' + i] ={
+          title: 'News ' + (i + 1),
+          description: newsItem.title,
+          image: new Image({
+            url: 'https://storage.googleapis.com/actionsresources/logo_assistant_2x_64dp.png',
+            alt: 'test image'
+          })
+        }
+        if (i < 3){
+          responseToUser += ' News number  ' + (i + 1) + ':';
+          responseToUser += newsItem.title;
+        }
+      }
+      conv.ask(textList);
+      conv.ask(responseToUser);
+
+      // show list
+      if (conv.surface.capabilities.has("actions.capability.SCREEN_OUTPUT")){  // check if screen is available
+        conv.ask(new List({
+          title: 'List of news',
+          items
+        }));
+      }
+    }
+
+    return conv;
   }
 
   async function showNews(agent) {
     let response = await displayNews();
     agent.add(response);
+    // next intent: call tutorial intent
   }
 
   async function nextNews(agent){
     conv.data.newsCounter++;
     let response = await displayNews();
     agent.add(response);
+  }
+
+  async function previousNews(agent){
+    if (conv.data.newsCounter > 0){
+      conv.data.newsCounter--;
+      let response = await displayNews();
+      agent.add(response);
+    }
   }
 
   async function displayNews(){
@@ -77,14 +134,31 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
       conv.ask(responseToUser);
     }else {
       let newsItem = conv.data.news[conv.data.newsCounter];
-      responseToUser = 'News number ' + conv.data.newsCounter  + ' ';
+      responseToUser = 'News number ' + conv.data.newsCounter+1  + ' ';
       responseToUser += newsItem.title;
 
       conv.ask(responseToUser);
 
-      // TODO display newsItem in a card
-    }
+      // display newsItem in a card
+      if (conv.surface.capabilities.has("actions.capability.SCREEN_OUTPUT")){ // check if screen is available
+        conv.ask(new BasicCard({
+          text: newsItem.title,
+          subtitle: 'This is a subtitle',
+          title: 'Title: this is a title',
+          buttons: new Button({
+            title: 'Read more',
+            url: newsItem.url,
+          }),
+          image: new Image({
+            url: 'https://storage.googleapis.com/actionsresources/logo_assistant_2x_64dp.png',
+            alt: 'Image alternate text',
+          }),
+          display: 'CROPPED',
+        }));
 
+        conv.ask(new Suggestions('Next'));
+      }
+    }
     return conv;
   }
 
@@ -140,10 +214,10 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
   let intentMap = new Map();
   intentMap.set('Default Welcome Intent', welcome);
   intentMap.set('Default Fallback Intent', fallback);
-  intentMap.set('music vote', voting);
   intentMap.set('show news', showNews);
-    intentMap.set('show news - next', nextNews);
-  intentMap.set('coin price', coinPrice);
+  intentMap.set('show news - next', nextNews);
+  intentMap.set('show news - next - previous', previousNews);
+  intentMap.set('show news list', listNews);
   // intentMap.set('your intent name here', yourFunctionHandler);
   // intentMap.set('your intent name here', googleAssistantHandler);
   agent.handleRequest(intentMap);
