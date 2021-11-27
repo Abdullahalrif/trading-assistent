@@ -96,18 +96,51 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
     return conv;
   }
 
+  /*
+  * this method will handle tow cases:
+  *   1- if user clicks on the items in the news list
+  *   2- if user says or writes the number of a news
+  * */
+  async function selectNewsByNumber(agent){
+    // if user clicks on the items in the news list
+    let option = agent.contexts.find(function (obj){
+      return obj.name === 'actions_intent_option';
+    });
+    if (option && option.hasOwnProperty('parameters') && option.parameters.hasOwnProperty('OPTION')){
+      conv.data.newsCounter = parseInt(option.parameters.OPTION.replace('news ', ''))
+    }
+
+    // if user says or writes the number of a news
+    let number = agent.parameters['number'];
+    if (number.length > 0){
+      conv.data.newsCounter = parseInt(number[0]) -1;
+    }
+
+    let response = await displayNews();
+    agent.add(response);
+  }
+
+  /*
+  *
+  * */
   async function showNews(agent) {
     let response = await displayNews();
     agent.add(response);
     // next intent: call tutorial intent
   }
 
+  /*
+  *
+  * */
   async function nextNews(agent){
     conv.data.newsCounter++;
     let response = await displayNews();
     agent.add(response);
   }
 
+  /*
+  *
+  * */
   async function previousNews(agent){
     if (conv.data.newsCounter > 0){
       conv.data.newsCounter--;
@@ -116,6 +149,9 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
     }
   }
 
+  /*
+  *
+  * */
   async function displayNews(){
     if (conv === null || conv.data.news.length === 0){ // check if we have already fetched news
       await getNews();
@@ -127,6 +163,9 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
     }
   }
 
+  /*
+  *
+  * */
   function buildSingelNewsResponse(){
     let responseToUser;
     if (conv.data.news.length === 0){
@@ -134,7 +173,7 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
       conv.ask(responseToUser);
     }else {
       let newsItem = conv.data.news[conv.data.newsCounter];
-      responseToUser = 'News number ' + conv.data.newsCounter+1  + ' ';
+      responseToUser = 'News number ' + (conv.data.newsCounter+1)  + ' ';
       responseToUser += newsItem.title;
 
       conv.ask(responseToUser);
@@ -162,6 +201,9 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
     return conv;
   }
 
+  /*
+  *
+  * */
   function getNews(){
     return axios.get('https://cryptopanic.com/api/v1/posts/?auth_token=f9ea6488d66276436a65695a038699d8ddea9ed0&filter=hot')
         .then(function (response) {
@@ -174,7 +216,9 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
         });
   }
 
-  // we save the data to avoid call the api every time
+  /*
+  * this method is used to save the data (news) coming from the api to avoid call the api every time
+  * */
   function saveNews(news){
     if (conv !== null){
       conv.data.news = news;
@@ -218,6 +262,7 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
   intentMap.set('show news - next', nextNews);
   intentMap.set('show news - next - previous', previousNews);
   intentMap.set('show news list', listNews);
+  intentMap.set('show news list - select.number', selectNewsByNumber);
   // intentMap.set('your intent name here', yourFunctionHandler);
   // intentMap.set('your intent name here', googleAssistantHandler);
   agent.handleRequest(intentMap);
