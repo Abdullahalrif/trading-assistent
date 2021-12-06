@@ -132,6 +132,16 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
   /*
   *
   * */
+  async function showNewsByCoin(agent) {
+    let coin = agent.parameters['currency-name'];
+    let response = await displayNews(coin);
+    agent.add(response);
+    // next intent: call tutorial intent
+  }
+
+  /*
+  *
+  * */
   async function nextNews(agent){
     conv.data.newsCounter++;
     let response = await displayNews();
@@ -150,11 +160,30 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
   }
 
   /*
+  * show price
+  * */
+  async function showPrice(agent){
+    let coin = agent.parameters['currency-name'];
+    let response = await getCoinPrice(coin);
+
+    agent.add(coin + ' is '  + response + ' $');
+  }
+
+
+  const getCoinPrice = async (coin) => {
+    let symbol = coin + 'USDT'
+    const result = await binance.prices()
+    return  result[symbol]
+  }
+
+
+  /*
   *
   * */
-  async function displayNews(){
+  async function displayNews(coin){
+
     if (conv === null || conv.data.news.length === 0){ // check if we have already fetched news
-      await getNews();
+      await getNews(coin);
       // display
       return buildSingelNewsResponse();
     } else {
@@ -204,8 +233,16 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
   /*
   *
   * */
-  function getNews(){
-    return axios.get('https://cryptopanic.com/api/v1/posts/?auth_token=f9ea6488d66276436a65695a038699d8ddea9ed0&filter=hot')
+  function getNews(coin){
+    coin = (typeof coin === 'undefined') ? 'default' : coin; // check if the parameter coin is passed
+    let apiUrl;
+    if (coin !== "default"){
+      apiUrl = 'https://cryptopanic.com/api/v1/posts/?auth_token=f9ea6488d66276436a65695a038699d8ddea9ed0&filter=hot&currencies=' + coin;
+    }
+    else {
+      apiUrl = 'https://cryptopanic.com/api/v1/posts/?auth_token=f9ea6488d66276436a65695a038699d8ddea9ed0&filter=hot';
+    }
+    return axios.get(apiUrl)
         .then(function (response) {
           let news = response.data;
           saveNews(news.results);
@@ -224,6 +261,11 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
       conv.data.news = news;
     }
   }
+
+  /*
+  * Get Coin price
+  * */
+
 
   // // Uncomment and edit to make your own intent handler
   // // uncomment `intentMap.set('your intent name here', yourFunctionHandler);`
@@ -259,10 +301,12 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
   intentMap.set('Default Welcome Intent', welcome);
   intentMap.set('Default Fallback Intent', fallback);
   intentMap.set('show news', showNews);
+  intentMap.set('show news by coin', showNewsByCoin);
   intentMap.set('show news - next', nextNews);
   intentMap.set('show news - next - previous', previousNews);
   intentMap.set('show news list', listNews);
   intentMap.set('show news list - select.number', selectNewsByNumber);
+  intentMap.set('coin price', showPrice);
   // intentMap.set('your intent name here', yourFunctionHandler);
   // intentMap.set('your intent name here', googleAssistantHandler);
   agent.handleRequest(intentMap);

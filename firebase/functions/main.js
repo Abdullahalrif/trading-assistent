@@ -7,8 +7,8 @@ const apiClient = axios.create({
     }
 });
 
-
-fs.readFile('test.json', 'utf8' , (err, data) => {
+/*
+fs.readFile('response.json', 'utf8' , (err, data) => {
     if (err) {
         console.error(err)
         return
@@ -20,17 +20,34 @@ fs.readFile('test.json', 'utf8' , (err, data) => {
 const Binance = require('node-binance-api');
 const binance = new Binance();
 
-const price = async () => {
-    let symbol = 'BNBUSDT'
+binance.candlesticks("BNBUSDT", "1d", (error, ticks, symbol) => {
+    //console.info("candlesticks()", ticks);
+    let last_tick = ticks[ticks.length - 1];
+    let [time, open, high, low, close, volume, closeTime, assetVolume, trades, buyBaseVolume, buyAssetVolume, ignored] = last_tick;
+    console.info(symbol+" last close: "+close);
+}, {limit: 500, endTime: 1626820831000});
+
+
+*/
+
+const Binance = require('node-binance-api');
+const binance = new Binance();
+
+const price = async (coin) => {
+    let symbol = coin + 'USDT'
     const result = await binance.prices()
     return  result[symbol]
 }
 
-(async () => {
-    const users = await price()
-    console.log(users)
-})()
 
+// google handler
+(async () => {
+    // let coin = agent.parameters[sys-currency]
+    let coin = 'ETH'
+    const p = await price(coin)
+    console.log(p)
+})()
+/*
 displayNews()
 
 function displayNews(){
@@ -43,4 +60,4 @@ function displayNews(){
             console.log(error);
         });
 }
-
+*/
