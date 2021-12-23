@@ -2,12 +2,28 @@
   "results": [
     {
       "term": "Bitcoin",
-      "description": "Bitcoin is ......"
+      "abbreviation": "BTC",
+      "definition": "Bitcoin is a decentralized digital currency, without a central bank or single administrator, that can be sent from user to user on the peer-to-peer bitcoin network without the need for intermediaries"
     },
     {
       "term": "Blockchain",
-      "description": "...................."
+      "abbreviation": "",
+      "definition": "A blockchain is a distributed database that is shared among the nodes of a computer network. As a database, a blockchain stores information electronically in digital format"
+    },
+    {
+      "term": "Mining",
+      "abbreviation": "",
+      "definition": "A blockchain is a distributed database that is shared among the nodes of a computer network. As a database, a blockchain stores information electronically in digital format"
+    },
+    {
+      "term": "Cardano",
+      "abbreviation": "ADA",
+      "definition": "Cardano is a public blockchain platform. It is open-source and decentralized, with consensus achieved using proof of stake. It can facilitate peer-to-peer transactions with its internal cryptocurrency, Ada. Cardano was founded in 2015 by Ethereum co-founder Charles Hoskinson."
+    },
+    {
+      "term": "Litecoin",
+      "abbreviation": "LTC",
+      "definition": "Litecoin is a peer-to-peer cryptocurrency and open-source software project released under the MIT/X11 license. Litecoin was an early bitcoin spinoff or altcoin, starting in October 2011. In technical details, Litecoin is nearly identical to Bitcoin."
     }
-
   ]
 }

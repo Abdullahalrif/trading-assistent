@@ -2,14 +2,15 @@
 // for Dialogflow fulfillment library docs, samples, and to report issues
 'use strict';
 
+const {Coin} = require("./Coin");
 const functions = require('firebase-functions');
 const {WebhookClient} = require('dialogflow-fulfillment');
 //const {Card, Suggestion} = require('dialogflow-fulfillment');
 const { BasicCard, Button, Image, List, Suggestions} = require('actions-on-google');
 
-process.env.DEBUG = 'dialogflow:debug'; // enables lib debugging statements
+const fs = require('fs') // to read data from file
 
-const axios = require('axios');
+process.env.DEBUG = 'dialogflow:debug'; // enables lib debugging statements
 
 const Binance = require('node-binance-api');
 const binance = new Binance();
@@ -20,9 +21,11 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
   console.log('Dialogflow Request body: ' + JSON.stringify(request.body));
   console.log('Dialogflow Intent: ' + agent.intent);
   console.log('Dialogflow Parameters: ' + agent.parameters);
-  console.log('Dialogflow Music: ' + agent.parameters['music-artist']);
 
   let conv = agent.conv(); // Get Actions on Google library conv instance
+  let coinHelper = new Coin();
+
+
 
   if (conv !== null && conv.data.news === undefined ) {
     conv.data.news = [];
@@ -32,8 +35,14 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
     conv.data.newsCounter = 0;
   }
 
+  if ( conv !== null && conv.data.currentCoin === undefined ) {
+    conv.data.currentCoin = '';
+  }
+
   function welcome(agent) {
-    agent.add(`Welcome to my agent!!!`);
+    //agent.add(`Welcome to my agent!!!`);
+      conv.ask('Hello from the Actions on Google client library!') // Use Actions on Google library
+      agent.add(conv); // Add Actions on Google library responses to your agent's response
   }
 
   function fallback(agent) {
@@ -41,15 +50,39 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
     agent.add(`I'm sorry, can you try again?`);
   }
 
+  /*
+  * Tutorial
+  * */
+  function defineTerm(agent){
+    let searchTerm = agent.parameters['search-term'];
+    let response = getTermDefinition(searchTerm)
+
+    agent.add(response);
+  }
+
+  function getTermDefinition(searchTerm){
+    let data = fs.readFileSync('response.json','utf8');
+    let res = JSON.parse(data)
+    for(let item of res.results) {
+      if (item.term === searchTerm || item.abbreviation === searchTerm)
+        return item.definition;
+    }
+  }
+
+
   async function listNews(agent) {
     let response = await getNewsList();
     agent.add(response);
   }
 
   async function getNewsList(){
+    // reset newsCounter and news list and currentCoin
+    conv.data.news = [];
     conv.data.newsCounter = 0;
+    conv.data.currentCoin = '';
+
     if (conv.data.news.length === 0){ // check if we have data from the api service
-      await getNews();
+      conv.data.news= await coinHelper.getHotNews();
 
       return buildNewsListResponse();
     } else {
@@ -58,7 +91,7 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
   }
 
   function buildNewsListResponse(){
-    let responseToUser;
+    let responseToUser = '';
     if (conv.data.news.length === 0){
       responseToUser = 'no news available at this time! try again later';
       conv.close(responseToUser); // close conversation later call another intent
@@ -124,6 +157,11 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
   *
   * */
   async function showNews(agent) {
+    // reset newsCounter and news list and currentCoin
+    conv.data.news = [];
+    conv.data.newsCounter = 0;
+    conv.data.currentCoin = '';
+
     let response = await displayNews();
     agent.add(response);
     // next intent: call tutorial intent
@@ -133,10 +171,27 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
   *
   * */
   async function showNewsByCoin(agent) {
-    let coin = agent.parameters['currency-name'];
-    let response = await displayNews(coin);
+    // reset newsCounter and news list
+    conv.data.news = [];
+    conv.data.newsCounter = 0;
+
+    conv.data.currentCoin = agent.parameters['currency-name'];
+    let response = await displayNews();
+    response.ask("Do you want to know more about " + conv.data.currentCoin + "?")
     agent.add(response);
+
+    // clear currentCoin to give the user the ability to ask for different coin
+    //conv.data.currentCoin = '';
+
     // next intent: call tutorial intent
+  }
+
+  function showMoreAboutCoin(agent){
+
+    let currency = conv.contexts.get('pass_search_term').parameters['currency-name'];
+    let response = getTermDefinition(currency);
+    conv.ask(response)
+    agent.add(conv);
   }
 
   /*
@@ -164,8 +219,7 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
   * */
   async function showPrice(agent){
     let coin = agent.parameters['currency-name'];
-    let response = await getCoinPrice(coin);
-
+    let response = await coinHelper.getCoinPrice(coin);
     agent.add(coin + ' is '  + response + ' $');
   }
 
@@ -180,10 +234,15 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
   /*
   *
   * */
-  async function displayNews(coin){
+  async function displayNews(){
 
     if (conv === null || conv.data.news.length === 0){ // check if we have already fetched news
-      await getNews(coin);
+      if (conv.data.currentCoin === ''){
+        conv.data.news = await coinHelper.getHotNews();
+      }
+      else {
+        conv.data.news = await coinHelper.getCoinNews(conv.data.currentCoin);
+      }
       // display
       return buildSingelNewsResponse();
     } else {
@@ -223,78 +282,11 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
           }),
           display: 'CROPPED',
         }));
-
         conv.ask(new Suggestions('Next'));
       }
     }
     return conv;
   }
-
-  /*
-  *
-  * */
-  function getNews(coin){
-    coin = (typeof coin === 'undefined') ? 'default' : coin; // check if the parameter coin is passed
-    let apiUrl;
-    if (coin !== "default"){
-      apiUrl = 'https://cryptopanic.com/api/v1/posts/?auth_token=f9ea6488d66276436a65695a038699d8ddea9ed0&filter=hot&currencies=' + coin;
-    }
-    else {
-      apiUrl = 'https://cryptopanic.com/api/v1/posts/?auth_token=f9ea6488d66276436a65695a038699d8ddea9ed0&filter=hot';
-    }
-    return axios.get(apiUrl)
-        .then(function (response) {
-          let news = response.data;
-          saveNews(news.results);
-        })
-        .catch(function (error) {
-          console.log('no news were found')
-          console.log(error);
-        });
-  }
-
-  /*
-  * this method is used to save the data (news) coming from the api to avoid call the api every time
-  * */
-  function saveNews(news){
-    if (conv !== null){
-      conv.data.news = news;
-    }
-  }
-
-  /*
-  * Get Coin price
-  * */
-
-
-  // // Uncomment and edit to make your own intent handler
-  // // uncomment `intentMap.set('your intent name here', yourFunctionHandler);`
-  // // below to get this function to be run when a Dialogflow intent is matched
-  // function yourFunctionHandler(agent) {
-  //   agent.add(`This message is from Dialogflow's Cloud Functions for Firebase editor!`);
-  //   agent.add(new Card({
-  //       title: `Title: this is a card title`,
-  //       imageUrl: 'https://developers.google.com/actions/images/badges/XPM_BADGING_GoogleAssistant_VER.png',
-  //       text: `This is the body text of a card.  You can even use line\n  breaks and emoji! 💁`,
-  //       buttonText: 'This is a button',
-  //       buttonUrl: 'https://assistant.google.com/'
-  //     })
-  //   );
-  //   agent.add(new Suggestion(`Quick Reply`));
-  //   agent.add(new Suggestion(`Suggestion`));
-  //   agent.setContext({ name: 'weather', lifespan: 2, parameters: { city: 'Rome' }});
-  // }
-
-  // // Uncomment and edit to make your own Google Assistant intent handler
-  // // uncomment `intentMap.set('your intent name here', googleAssistantHandler);`
-  // // below to get this function to be run when a Dialogflow intent is matched
-  // function googleAssistantHandler(agent) {
-  //   let conv = agent.conv(); // Get Actions on Google library conv instance
-  //   conv.ask('Hello from the Actions on Google client library!') // Use Actions on Google library
-  //   agent.add(conv); // Add Actions on Google library responses to your agent's response
-  // }
-  // // See https://github.com/dialogflow/fulfillment-actions-library-nodejs
-  // // for a complete Dialogflow fulfillment library Actions on Google client library v2 integration sample
 
   // Run the proper function handler based on the matched Dialogflow intent name
   let intentMap = new Map();
@@ -302,12 +294,18 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
   intentMap.set('Default Fallback Intent', fallback);
   intentMap.set('show news', showNews);
   intentMap.set('show news by coin', showNewsByCoin);
+  intentMap.set('show news by coin - yes', showMoreAboutCoin);
   intentMap.set('show news - next', nextNews);
+  intentMap.set('show news by coin - next', nextNews);
   intentMap.set('show news - next - previous', previousNews);
   intentMap.set('show news list', listNews);
   intentMap.set('show news list - select.number', selectNewsByNumber);
   intentMap.set('coin price', showPrice);
-  // intentMap.set('your intent name here', yourFunctionHandler);
-  // intentMap.set('your intent name here', googleAssistantHandler);
+
+  /*
+  * Tutorial Skill intents
+  * */
+  intentMap.set('define term', defineTerm);
+
   agent.handleRequest(intentMap);
 });

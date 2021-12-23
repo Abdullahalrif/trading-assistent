@@ -1,5 +1,6 @@
 const axios = require('axios');
 const fs = require('fs')
+const {Coin} = require("./Coin");
 
 const apiClient = axios.create({
     headers: {
@@ -8,15 +9,22 @@ const apiClient = axios.create({
 });
 
 /*
-fs.readFile('response.json', 'utf8' , (err, data) => {
-    if (err) {
-        console.error(err)
-        return
-    }
-    let res = JSON.parse(data)
-    console.log(res.results[1].description)
-})
 
+
+
+console.log( getTermDefinition('Blockchain'))
+
+
+function getTermDefinition(searchTerm){
+    let data = fs.readFileSync('response.json','utf8');
+        let res = JSON.parse(data)
+        for(let item of res.results) {
+            if (item.term === searchTerm)
+                return item.definition;
+        }
+}*/
+
+/*
 const Binance = require('node-binance-api');
 const binance = new Binance();
 
@@ -29,7 +37,7 @@ binance.candlesticks("BNBUSDT", "1d", (error, ticks, symbol) => {
 
 
 */
-
+/*
 const Binance = require('node-binance-api');
 const binance = new Binance();
 
@@ -46,7 +54,7 @@ const price = async (coin) => {
     let coin = 'ETH'
     const p = await price(coin)
     console.log(p)
-})()
+})()*/
 /*
 displayNews()
 
@@ -61,3 +69,11 @@ function displayNews(){
         });
 }
 */
+
+
+(async () => {
+    let coinHelper = new Coin();
+    let price = await coinHelper.getCoinPrice('ADA');
+    console.log(price)
+})()
+
