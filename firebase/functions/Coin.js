@@ -98,6 +98,18 @@ class Coin {
             });
     }
 
+    getAllExchanges(){
+        return axios.get('https://api.coingecko.com/api/v3/exchanges')
+            .then(function (response) {
+                let exchanges = response.data
+                return exchanges;
+            })
+            .catch(function (error) {
+                console.log(error);
+            });
+    }
+
+
 }
 
 module.exports.Coin = Coin;

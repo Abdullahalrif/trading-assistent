@@ -34,15 +34,21 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
         conv.data.currentCoin = '';
     }
 
+    if (conv !== null && conv.data.exchanges === undefined) {
+        conv.data.exchanges = [];
+    }
+
+
     // Helpers
     let coinHelper = new Coin();
     let userResponseBuilder = new UserResponse(conv);
 
     function welcome(agent) {
-        if (conv.user.last.seen) {
-            conv.ask(`Hey you're back...`);
+        if (conv.user.storage.username === undefined) {
+            conv.ask(`Welcome to my agent! What's your name?`);
         } else {
-            conv.ask('Welcome to my agent!') // Use Actions on Google library
+            conv.ask(`Welcome back ${conv.user.storage.username}!`);
+            conv.ask(new Suggestions('forget my name'));
         }
         agent.add(conv); // Add Actions on Google library responses to the agent's response
     }
@@ -52,25 +58,37 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
         agent.add(`I'm sorry, can you try again?`);
     }
 
+    function clearUserStorage(agent){
+        conv.user.storage = {};
+        conv.ask(`Alright, I forgot your name.`);
+
+        agent.add(conv);
+    }
+
 
     function defineTerm(agent) {
         let searchTerm = agent.parameters['search-term'];
-        let response = getTermDefinition(searchTerm)
+        let response = getTermDefinition(searchTerm);
+
 
         agent.add(response);
     }
 
     function getTermDefinition(searchTerm) {
-        let data = fs.readFileSync('response.json', 'utf8');
-        let res = JSON.parse(data)
-        for (let item of res.results) {
+        let data = fs.readFileSync('response.json','utf8');
+        let res = JSON.parse(data);
+        let response = "";
+        for(let item of res.results) {
             if (item.term === searchTerm || item.abbreviation === searchTerm){
-                return item.definition;
+                response = item.definition.toString();
+                break;
             }
             else {
-                return "i dont know what " + searchTerm + " is! " + "please say something else";
+                response = "i dont know what that is! please say something else";
             }
         }
+
+        return response;
     }
 
 
@@ -237,6 +255,82 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
         agent.add(response);
     }
 
+    /*
+    * this intent handler returns all exchanges as a list
+    * */
+    async function listExchanges(agent){
+        let response = '';
+
+        conv.data.exchanges = await coinHelper.getAllExchanges();
+        response = userResponseBuilder.buildExchangesResponseAsList();
+
+        agent.add(response);
+    }
+
+    async function selectExchangeByNumber(agent) {
+        let selectedExchangeNumber;
+
+        // if user clicks on the item in the exchanges list
+        let option = agent.contexts.find(function (obj) {
+            return obj.name === 'actions_intent_option';
+        });
+
+        if (option && option.hasOwnProperty('parameters') && option.parameters.hasOwnProperty('OPTION')) {
+            selectedExchangeNumber = parseInt(option.parameters.OPTION.replace('exchange ', ''))
+        }
+
+        // if user says or writes the number of an exchange
+        let number = agent.parameters['number'];
+        if (number.length > 0) {
+            selectedExchangeNumber = parseInt(number[0]) - 1;
+        }
+
+        conv.data.exchanges = await coinHelper.getAllExchanges();
+
+        let response = userResponseBuilder.buildExchangeInfoResponseInBasicCard(selectedExchangeNumber);
+
+        agent.add(response);
+    }
+
+    function getUserName(agent){
+        let user_name = agent.parameters['person'].name;
+        conv.user.storage.username = user_name;
+        conv.ask(`Nice to meet you ${user_name}`);
+        conv.ask("I am your Crypto Assistent. I will help you with your trading. Say help to get more info about what can i do!")
+        agent.add(conv);
+    }
+
+
+    /*
+    * help
+    * */
+    async function help(agent) {
+        const HELP_PROMPTS = [
+            'There\'s a lot you might want to know about the crypto, and I can tell you all about it, like show bitcoin price or news. What do you want to know?',
+            'I\'m here to help, so let me know if you need any help figuring out what crypto is. What do you want to know?',
+        ];
+
+        let pick = Math.floor(Math.random() * HELP_PROMPTS.length);
+
+        let response = HELP_PROMPTS[pick]; // get a random response from the list HELP_PROMPTS
+
+        // add suggestions
+        conv.ask(new Suggestions('show hot news'));
+        conv.ask(new Suggestions('show Ethereum news'));
+        conv.ask(new Suggestions('get Ethereum price'));
+        conv.ask(new Suggestions('What is blockchain'));
+
+
+        conv.ask(response);
+        agent.add(conv);
+    }
+
+    function exitConversation(agent){
+        conv.ask("Okay, talk to you next time!")
+        conv.close(`Goodbye ${conv.user.storage.username}!`);
+        agent.add(conv);
+    }
+
 
     /*
     *
@@ -262,6 +356,7 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
     let intentMap = new Map();
     intentMap.set('Default Welcome Intent', welcome);
     intentMap.set('Default Fallback Intent', fallback);
+    intentMap.set('clear userStorage', clearUserStorage);
 
 
     intentMap.set('show news', showHotNews);
@@ -282,10 +377,20 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
 
     intentMap.set('earn with coin in specific period', earnWithCoinInSpecificPeriod);
 
-    /*
-    * Tutorial Skill intents
-    * */
-    intentMap.set('define term', defineTerm);
+
+    intentMap.set('Define Term', defineTerm);
+
+
+    intentMap.set('show exchanges list', listExchanges);
+    intentMap.set('show exchanges list - select.number', selectExchangeByNumber);
+
+    // help
+    intentMap.set('help', help);
+
+
+    intentMap.set('Get User Name', getUserName);
+
+    intentMap.set('Exit Conversation', exitConversation);
 
     agent.handleRequest(intentMap);
 });

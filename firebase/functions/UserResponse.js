@@ -1,4 +1,8 @@
 
+/*
+* This class is used to build multimodal responses for user
+* */
+
 const { BasicCard, Button, Image, List, Suggestions} = require('actions-on-google');
 
 class UserResponse {
@@ -108,6 +112,74 @@ Revenue: ${earned.toFixed(2)} $ \n`,
             }));
         }
 
+        return this.conv;
+    }
+
+
+
+    buildExchangesResponseAsList(){
+        let responseToUser = '';
+        if (this.conv.data.exchanges.length === 0){
+            responseToUser = 'no exchanges available at this time! try again later';
+            this.conv.close(responseToUser); // close conversation later call another intent
+        } else {
+            let textList = 'This is a list of exchanges. Please select one to get more info ';
+            let items = {};
+
+            for (let i = 0; i < this.conv.data.exchanges.length; i++){
+                let exchange = this.conv.data.exchanges[i];
+                items['exchange ' + i] ={
+                    title: 'Exchange ' + (i + 1),
+                    description: exchange.name,
+                    image: new Image({
+                        url: exchange.image,
+                        alt: 'test image'
+                    })
+                }
+            }
+            this.conv.ask(textList);
+
+            // show list
+            if (this.conv.surface.capabilities.has("actions.capability.SCREEN_OUTPUT")){  // check if screen is available
+                this.conv.ask(new List({
+                    title: 'List of exchanges',
+                    items
+                }));
+            }
+        }
+        return this.conv;
+    }
+
+    buildExchangeInfoResponseInBasicCard(selectedExchangeNumber){
+        let responseToUser = '';
+        if (this.conv.data.exchanges.length === 0){
+            responseToUser = 'No exchanges available now';
+            this.conv.ask(responseToUser);
+        }else {
+            let exchange = this.conv.data.exchanges[selectedExchangeNumber];
+            responseToUser = exchange.description;
+
+            this.conv.ask(responseToUser);
+
+            // display newsItem in a card
+            if (this.conv.surface.capabilities.has("actions.capability.SCREEN_OUTPUT")){ // check if screen is available
+                this.conv.ask(new BasicCard({
+                    text: `Trust score rank: ${exchange.trust_score_rank} \n
+Trade bitcoin volume 24h: ${exchange.trade_volume_24h_btc.toFixed(2)} \n`,
+                    subtitle: `Country: ${exchange.country}`,
+                    title: `Name: ${exchange.name}`,
+                    buttons: new Button({
+                        title: `Go to ${exchange.name}`,
+                        url: exchange.url,
+                    }),
+                    image: new Image({
+                        url: exchange.image,
+                        alt: 'Image alternate text',
+                    }),
+                    display: 'CROPPED',
+                }));
+            }
+        }
         return this.conv;
     }
 
